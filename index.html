@@ -18,6 +18,7 @@
     body {
       font-family: 'Russo One', sans-serif;
       overflow: hidden;
+      box-sizing: border-box;
     }
     
     .table-felt {
@@ -68,6 +69,7 @@
     .ball-6 { background: linear-gradient(135deg, #00cc66 0%, #009944 50%, #006622 100%); }
     .ball-7 { background: linear-gradient(135deg, #cc4466 0%, #992233 50%, #661122 100%); }
     
+    /* 스트라이프 공 겹침 오류 해결: position: relative 삭제 및 ::before 에 top, left 지정 */
     .ball-8 { background: repeating-linear-gradient(45deg, #ffdd00 0%, #ffdd00 10px, #fff 10px, #fff 20px); }
     .ball-8::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: repeating-linear-gradient(45deg, transparent 0%, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px); }
     .ball-9 { background: repeating-linear-gradient(45deg, #0066ff 0%, #0066ff 10px, #fff 10px, #fff 20px); }
@@ -138,7 +140,7 @@
       </div>
       
       <div id="turn-indicator" class="turn-indicator mb-3 px-6 py-2 rounded-full bg-amber-600 text-white text-sm">
-       🎱 YOUR TURN - Click cue ball and drag to aim
+        🎱 YOUR TURN - Click cue ball and drag to aim
       </div>
       
       <div class="relative">
@@ -223,10 +225,10 @@
     let balls = [];
     let cueBall = null;
     let isAiming = false;
-    let currentAngle = 0;
+    let currentAngle = 0; // Angle in radians
     let aimActive = false;
     let powerAnimating = false;
-    let powerDirection = 1;
+    let powerDirection = 1; // 1 for increasing, -1 for decreasing
     let power = 0;
     let score = 0;
     let ballsPocketed = 0;
@@ -235,24 +237,25 @@
     let pocketedThisShot = false;
     let cueBallPocketed = false;
     let shotsRemaining = 3;
-    let isGameOver = false; // 추가된 변수: 무한 팝업 방지
-
+    let initialBallCount = 10;
+    
     // 랭킹 보드 관리 시스템
     function saveScoreAndRank(finalScore) {
       if(finalScore <= 0) return; 
 
-      // 지연 시간을 제거하거나 유지해도 isGameOver가 보호함
-      const playerName = prompt(`게임 종료! 최종 점수: ${finalScore}점\n랭킹에 등록할 이름을 입력하세요:`);
-      if (playerName) {
-        let rankings = JSON.parse(localStorage.getItem('poolRankings') || '[]');
-        rankings.push({ name: playerName.slice(0, 10), score: finalScore });
-        
-        rankings.sort((a, b) => b.score - a.score);
-        rankings = rankings.slice(0, 10);
-        
-        localStorage.setItem('poolRankings', JSON.stringify(rankings));
-        displayRankings();
-      }
+      setTimeout(() => {
+        const playerName = prompt(`게임 종료! 최종 점수: ${finalScore}점\n랭킹에 등록할 이름을 입력하세요:`);
+        if (playerName) {
+          let rankings = JSON.parse(localStorage.getItem('poolRankings') || '[]');
+          rankings.push({ name: playerName.slice(0, 10), score: finalScore });
+          
+          rankings.sort((a, b) => b.score - a.score);
+          rankings = rankings.slice(0, 10);
+          
+          localStorage.setItem('poolRankings', JSON.stringify(rankings));
+          displayRankings();
+        }
+      }, 500);
     }
 
     function displayRankings() {
@@ -286,7 +289,6 @@
       powerAnimating = false;
       power = 0;
       shotsRemaining = 3;
-      isGameOver = false; // 상태 초기화
       
       updateScore();
       updateBallsLeft();
@@ -294,11 +296,14 @@
       const container = document.getElementById('balls-container');
       container.innerHTML = '';
       
+      // Create cue ball
       cueBall = createBall(150, TABLE_HEIGHT / 2, 'cue-ball', true);
       balls.push(cueBall);
       
       const startX = 500;
       const startY = TABLE_HEIGHT / 2;
+      
+      const ballClasses = ['ball-1', 'ball-2', 'ball-3', 'ball-6', 'ball-black', 'ball-7', 'ball-4', 'ball-8', 'ball-9', 'ball-5'];
       
       const positions = [
         { row: 0, col: 0, class: 'ball-1' },
@@ -319,7 +324,7 @@
         const ball = createBall(x, y, pos.class, false);
         ball.isBlackBall = pos.class === 'ball-black';
         balls.push(ball);
-      });
+      })
       
       document.getElementById('game-over').classList.add('hidden');
       document.getElementById('game-over').classList.remove('flex');
@@ -366,6 +371,7 @@
       document.getElementById('balls-left').textContent = remaining;
     }
     
+    // Physics
     function updatePhysics() {
       let anyMoving = false;
       
@@ -374,6 +380,7 @@
         
         ball.x += ball.vx;
         ball.y += ball.vy;
+        
         ball.vx *= FRICTION;
         ball.vy *= FRICTION;
         
@@ -382,12 +389,27 @@
           ball.vy = 0;
         }
         
-        if (ball.x - BALL_RADIUS < 0) { ball.x = BALL_RADIUS; ball.vx *= -0.8; }
-        if (ball.x + BALL_RADIUS > TABLE_WIDTH) { ball.x = TABLE_WIDTH - BALL_RADIUS; ball.vx *= -0.8; }
-        if (ball.y - BALL_RADIUS < 0) { ball.y = BALL_RADIUS; ball.vy *= -0.8; }
-        if (ball.y + BALL_RADIUS > TABLE_HEIGHT) { ball.y = TABLE_HEIGHT - BALL_RADIUS; ball.vy *= -0.8; }
+        if (ball.x - BALL_RADIUS < 0) {
+          ball.x = BALL_RADIUS;
+          ball.vx *= -0.8;
+        }
+        if (ball.x + BALL_RADIUS > TABLE_WIDTH) {
+          ball.x = TABLE_WIDTH - BALL_RADIUS;
+          ball.vx *= -0.8;
+        }
+        if (ball.y - BALL_RADIUS < 0) {
+          ball.y = BALL_RADIUS;
+          ball.vy *= -0.8;
+        }
+        if (ball.y + BALL_RADIUS > TABLE_HEIGHT) {
+          ball.y = TABLE_HEIGHT - BALL_RADIUS;
+          ball.vy *= -0.8;
+        }
         
-        if (Math.abs(ball.vx) > 0.1 || Math.abs(ball.vy) > 0.1) anyMoving = true;
+        if (Math.abs(ball.vx) > 0.1 || Math.abs(ball.vy) > 0.1) {
+          anyMoving = true;
+        }
+        
         updateBallPosition(ball);
       });
       
@@ -404,7 +426,8 @@
       });
       
       ballsMoving = anyMoving;
-      if (!anyMoving && !canShoot && !isGameOver) {
+      
+      if (!anyMoving && !canShoot) {
         endTurn();
       }
     }
@@ -417,6 +440,7 @@
       if (dist < BALL_RADIUS * 2) {
         const nx = dx / dist;
         const ny = dy / dist;
+        
         const dvx = ball1.vx - ball2.vx;
         const dvy = ball1.vy - ball2.vy;
         const dvn = dvx * nx + dvy * ny;
@@ -426,6 +450,7 @@
           ball1.vy -= dvn * ny * 0.9;
           ball2.vx += dvn * nx * 0.9;
           ball2.vy += dvn * ny * 0.9;
+          
           const overlap = BALL_RADIUS * 2 - dist;
           ball1.x -= overlap * nx / 2;
           ball1.y -= overlap * ny / 2;
@@ -444,7 +469,12 @@
         if (dist < POCKET_RADIUS) {
           ball.active = false;
           ball.element.classList.add('ball-sinking');
-          setTimeout(() => { if (ball.element) ball.element.style.display = 'none'; }, 300);
+          
+          setTimeout(() => {
+            if (ball.element) {
+              ball.element.style.display = 'none';
+            }
+          }, 300);
           
           if (ball.isCue) {
             cueBallPocketed = true;
@@ -464,53 +494,91 @@
     
     function endTurn() {
       if (cueBallPocketed) {
-        cueBall.x = 150; cueBall.y = TABLE_HEIGHT / 2;
-        cueBall.vx = 0; cueBall.vy = 0; cueBall.active = true;
+        cueBall.x = 150;
+        cueBall.y = TABLE_HEIGHT / 2;
+        cueBall.vx = 0;
+        cueBall.vy = 0;
+        cueBall.active = true;
         cueBall.element.classList.remove('ball-sinking');
         cueBall.element.style.display = 'block';
         updateBallPosition(cueBall);
         cueBallPocketed = false;
+        
         score = Math.max(0, score - 50);
         updateScore();
+        
         document.getElementById('turn-indicator').textContent = '❌ 스크래치! -50점 • 각도를 조정하고 SPACE 누르기';
+        setTimeout(() => {
+          if (canShoot) {
+            document.getElementById('turn-indicator').textContent = '🎱 각도를 조정하고 SPACE를 눌러 파워 게이지 시작';
+            aimActive = true; 
+            updateAimLine();
+          }
+        }, 1500);
       }
       
       const remainingBalls = balls.filter(b => !b.isCue && b.active).length;
-      if (remainingBalls === 0) { gameOver(true); return; }
+      
+      if (remainingBalls === 0) {
+        gameOver(true);
+        return;
+      }
       
       if (pocketedThisShot) {
-        canShoot = true; pocketedThisShot = false;
+        canShoot = true;
+        pocketedThisShot = false;
         document.getElementById('turn-indicator').textContent = `🎉 대성공! 기회 ${shotsRemaining}번 • 각도 조정 후 SPACE`;
+        setTimeout(() => {
+          document.getElementById('turn-indicator').textContent = `🎱 기회 ${shotsRemaining}번 남음 • ← A | D → 각도 조정`;
+        }, 1500);
+        
+        aimActive = true;
+        updateAimLine();
+        
       } else {
         shotsRemaining--;
+        
         if (shotsRemaining <= 0) {
           gameOver(false);
         } else {
           canShoot = true;
+          pocketedThisShot = false;
           document.getElementById('turn-indicator').textContent = `❌ 실패! 기회 ${shotsRemaining}번 남음 • 각도 조정`;
+          
+          aimActive = true;
+          updateAimLine();
         }
       }
     }
     
     function gameOver(won, blackBallFoul = false) {
-      if (isGameOver) return; // 중복 실행 방지 핵심 로직
-      isGameOver = true;
       canShoot = false;
       
       const finalScore = score;
       document.getElementById('final-score').textContent = finalScore;
       
-      let message = blackBallFoul ? '💀 검정공을 넣었어요! 게임 오버!' : (won ? '🏆 완벽한 게임! 보너스 +500점!' : `남은 공: ${balls.filter(b => !b.isCue && b.active).length}개`);
-      if (won) { score += 500; document.getElementById('final-score').textContent = score; }
+      const remainingBalls = balls.filter(b => !b.isCue && b.active).length;
+      let message = '';
+      
+      if (blackBallFoul) {
+        message = '💀 검정공을 넣었어요! 게임 오버!';
+      } else if (won) {
+        message = '🏆 완벽한 게임! 모든 공을 넣었어요!';
+        score += 500; // Bonus
+        document.getElementById('final-score').textContent = score;
+      } else {
+        message = `남은 공: ${remainingBalls}개`;
+      }
       
       document.getElementById('result-message').textContent = message;
       document.getElementById('game-over').classList.remove('hidden');
       document.getElementById('game-over').classList.add('flex');
       document.getElementById('turn-indicator').textContent = 'GAME OVER';
 
-      saveScoreAndRank(score); // 이제 한 번만 호출됨
+      saveScoreAndRank(score); 
     }
     
+    // Canvas Aim Line & Cue Stick
     const aimCanvas = document.getElementById('aim-canvas');
     const powerBar = document.getElementById('power-bar');
     
@@ -518,53 +586,215 @@
       if (!aimCanvas) return;
       const ctx = aimCanvas.getContext('2d');
       ctx.clearRect(0, 0, TABLE_WIDTH, TABLE_HEIGHT);
-      if (!aimActive || !canShoot || ballsMoving || !cueBall.active) { aimCanvas.classList.add('hidden'); return; }
+      
+      if (!aimActive || !canShoot || ballsMoving || !cueBall.active) {
+        aimCanvas.classList.add('hidden');
+        return;
+      }
       
       aimCanvas.classList.remove('hidden');
-      let x = cueBall.x, y = cueBall.y, dx = Math.cos(currentAngle), dy = Math.sin(currentAngle);
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.setLineDash([6, 4]); ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'; ctx.lineWidth = 2;
 
-      for (let i = 0; i < 350; i += 2) {
-        x += dx * 2; y += dy * 2;
-        if (x <= BALL_RADIUS || x >= TABLE_WIDTH - BALL_RADIUS) dx *= -1;
-        if (y <= BALL_RADIUS || y >= TABLE_HEIGHT - BALL_RADIUS) dy *= -1;
+      // 점선(가이드선) 그리기
+      let x = cueBall.x;
+      let y = cueBall.y;
+      let dx = Math.cos(currentAngle);
+      let dy = Math.sin(currentAngle);
+      let length = 350;
+
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.lineWidth = 2;
+
+      for (let i = 0; i < length; i += 2) {
+        x += dx * 2;
+        y += dy * 2;
+        let hitWall = false;
+        
+        if (x <= BALL_RADIUS) { 
+          x = BALL_RADIUS; dx *= -1; hitWall = true; 
+        } else if (x >= TABLE_WIDTH - BALL_RADIUS) { 
+          x = TABLE_WIDTH - BALL_RADIUS; dx *= -1; hitWall = true; 
+        }
+        
+        if (y <= BALL_RADIUS) { 
+          y = BALL_RADIUS; dy *= -1; hitWall = true; 
+        } else if (y >= TABLE_HEIGHT - BALL_RADIUS) { 
+          y = TABLE_HEIGHT - BALL_RADIUS; dy *= -1; hitWall = true; 
+        }
+
+        if (hitWall) {
+          ctx.lineTo(x, y);
+        }
       }
-      ctx.lineTo(x, y); ctx.stroke();
+      ctx.lineTo(x, y);
+      ctx.stroke();
+
+      // 큐대(Cue Stick) 그리기
+      ctx.setLineDash([]);
+      
+      const pullback = power * 60; 
+      const cueDistance = BALL_RADIUS + 5 + pullback; 
+      const cueLength = 250; 
+      const cueThickness = 6; 
+
+      const tipX = cueBall.x - Math.cos(currentAngle) * cueDistance;
+      const tipY = cueBall.y - Math.sin(currentAngle) * cueDistance;
+      const endX = cueBall.x - Math.cos(currentAngle) * (cueDistance + cueLength);
+      const endY = cueBall.y - Math.sin(currentAngle) * (cueDistance + cueLength);
+
+      ctx.beginPath();
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(endX, endY);
+      ctx.lineWidth = cueThickness;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#8B4513';
+      ctx.stroke();
+
+      const tipEndX = cueBall.x - Math.cos(currentAngle) * (cueDistance + 8);
+      const tipEndY = cueBall.y - Math.sin(currentAngle) * (cueDistance + 8);
+      
+      ctx.beginPath();
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(tipEndX, tipEndY);
+      ctx.lineWidth = cueThickness - 1;
+      ctx.strokeStyle = '#00aaff';
+      ctx.stroke();
     }
     
+    // Animate power bar
     function animatePowerBar() {
       if (!powerAnimating) return;
+      
       power += 0.02 * powerDirection;
-      if (power >= 1 || power <= 0) powerDirection *= -1;
+      
+      if (power >= 1) {
+        power = 1;
+        powerDirection = -1;
+      } else if (power <= 0) {
+        power = 0;
+        powerDirection = 1;
+      }
+      
       powerBar.style.width = `${power * 100}%`;
+      
+      updateAimLine();
+      
       requestAnimationFrame(animatePowerBar);
     }
     
+    // Keyboard controls
     document.addEventListener('keydown', (e) => {
-      if (!canShoot || ballsMoving || !cueBall.active || isGameOver) return;
-      if (e.key.toLowerCase() === 'a') { currentAngle -= 0.05; updateAimLine(); }
-      else if (e.key.toLowerCase() === 'd') { currentAngle += 0.05; updateAimLine(); }
-      else if (e.code === 'Space') {
+      if (!canShoot || ballsMoving || !cueBall.active) return;
+      
+      if (e.key === 'a' || e.key === 'A') {
+        currentAngle -= 0.0175;
+        aimActive = true;
+        updateAimLine();
+      } else if (e.key === 'd' || e.key === 'D') {
+        currentAngle += 0.0175;
+        aimActive = true;
+        updateAimLine();
+      } else if (e.code === 'Space') {
         e.preventDefault();
-        if (!powerAnimating) { powerAnimating = true; power = 0; powerDirection = 1; animatePowerBar(); }
+        
+        if (!powerAnimating) {
+          powerAnimating = true;
+          aimActive = true;
+          updateAimLine();
+          document.getElementById('turn-indicator').textContent = '⚡ SPACE를 눌러 파워 저장!';
+          animatePowerBar();
+        }
       }
     });
     
     document.addEventListener('keyup', (e) => {
-      if (e.code === 'Space' && powerAnimating) {
-        powerAnimating = false; aimActive = false; aimCanvas.classList.add('hidden');
-        if (power > 0.1) {
-          cueBall.vx = Math.cos(currentAngle) * (power * 40);
-          cueBall.vy = Math.sin(currentAngle) * (power * 40);
-          canShoot = false;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        
+        if (powerAnimating) {
+          powerAnimating = false; 
+          
+          const finalPower = power; 
+          
+          function strikeAnimation() {
+            power -= 0.15; 
+            
+            if (power <= 0) {
+              power = 0;
+              aimActive = false;
+              aimCanvas.classList.add('hidden');
+              
+              if (finalPower > 0.1) {
+                const speed = finalPower * 40;
+                cueBall.vx = Math.cos(currentAngle) * speed;
+                cueBall.vy = Math.sin(currentAngle) * speed;
+                
+                canShoot = false;
+                pocketedThisShot = false;
+                document.getElementById('turn-indicator').textContent = '🎱 공이 굴러가는 중...';
+              }
+              
+              powerBar.style.width = '0%';
+              powerDirection = 1;
+            } else {
+              updateAimLine();
+              requestAnimationFrame(strikeAnimation);
+            }
+          }
+          
+          strikeAnimation(); 
         }
-        powerBar.style.width = '0%';
       }
     });
     
+    // Restart button
     document.getElementById('restart-btn').addEventListener('click', initGame);
-    function gameLoop() { updatePhysics(); requestAnimationFrame(gameLoop); }
     
+    // Game loop
+    function gameLoop() {
+      updatePhysics();
+      requestAnimationFrame(gameLoop);
+    }
+    
+    // Element SDK
+    async function onConfigChange(cfg) {
+      document.getElementById('game-title').textContent = cfg.game_title || defaultConfig.game_title;
+      document.body.style.backgroundColor = cfg.background_color || defaultConfig.background_color;
+    }
+    
+    function mapToCapabilities(cfg) {
+      return {
+        recolorables: [
+          { get: () => cfg.background_color || defaultConfig.background_color, set: (v) => { cfg.background_color = v; window.elementSdk.setConfig({ background_color: v }); } },
+          { get: () => cfg.text_color || defaultConfig.text_color, set: (v) => { cfg.text_color = v; window.elementSdk.setConfig({ text_color: v }); } },
+          { get: () => cfg.accent_color || defaultConfig.accent_color, set: (v) => { cfg.accent_color = v; window.elementSdk.setConfig({ accent_color: v }); } },
+          { get: () => cfg.button_color || defaultConfig.button_color, set: (v) => { cfg.button_color = v; window.elementSdk.setConfig({ button_color: v }); } }
+        ],
+        borderables: [],
+        fontEditable: undefined,
+        fontSizeable: undefined
+      };
+    }
+    
+    function mapToEditPanelValues(cfg) {
+      return new Map([
+        ['game_title', cfg.game_title || defaultConfig.game_title]
+      ]);
+    }
+    
+    // Initialize SDK
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange,
+        mapToCapabilities,
+        mapToEditPanelValues
+      });
+    }
+    
+    // Start game & 랭킹보드 초기화
     initGame();
     displayRankings();
     gameLoop();
